@@ -1,0 +1,9 @@
+#!/bin/bash
+
+time=("/bin/time" "-f" "%e elapsed ( %U user %S system )")
+
+blob="$(./blob-first)" || exit 1
+echo "blob dir: /mnt/cephfs/blobs/$blob"
+echo "start: recursive ls of blob dir"
+echo -n "timings recursive ls: "
+"${time[@]}" ls -lR "/mnt/cephfs/blobs/$blob" > /dev/null || exit 1

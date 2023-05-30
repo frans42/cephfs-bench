@@ -1,0 +1,10 @@
+#!/bin/bash
+
+mountpoint -q "/mnt/cephfs" || {
+	echo "error: /mnt/cephfs not mounted" >&2
+	exit 1
+}
+
+echo "$(ls -1v "/mnt/cephfs/blobs" | wc -l) blobs:"
+blobs="$(ls -v "/mnt/cephfs/blobs" | tr "\n" " ")"
+[[ -n "$blobs" ]] && printf "%s\n" "$blobs" | fold -s -w 100

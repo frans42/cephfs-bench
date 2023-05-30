@@ -1,0 +1,13 @@
+#!/bin/bash
+
+conf_dir="$HOME/.bench"
+mkdir -p "${conf_dir}" || exit 1
+pipe="${conf_dir}/bench"
+
+[[ -p "$pipe" ]] || {
+	mkfifo "$pipe" || exit 1
+}
+
+echo "Requesting benchmark to continue."
+echo "log Requesting to continue." > "$pipe"
+echo "cont" > "$pipe"

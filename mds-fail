@@ -1,0 +1,27 @@
+#!/bin/bash
+
+rank="${1:-0}"
+
+fs_info="$(sudo docker exec ceph-adm ceph fs get fs -f json)"
+fs_gid="$(jq ".mdsmap.up.mds_${rank}" <<<"$fs_info")"
+[[ "$fs_gid" == "null" ]] && {
+	echo "mds-fail: rank ${rank} is not up" >&2
+	exit 1
+}
+fs_mds="$(jq -r ".mdsmap.info.gid_${fs_gid}.name" <<<"$fs_info")"
+
+echo "mds fail rank ${rank}: failing mds.$fs_mds on $(date)"
+sudo docker exec ceph-adm ceph mds fail "$fs_mds" |& sed "s/^/ceph mds fail: /"
+sleep 5
+
+while true ; do
+	fs_info="$(sudo docker exec ceph-adm ceph fs get fs -f json)"
+	fs_gid="$(jq ".mdsmap.up.mds_${rank}" <<<"$fs_info")"
+	[[ "$fs_gid" == "null" ]] && continue
+ 	fs_mds="$(jq -r ".mdsmap.info.gid_${fs_gid}.name" <<<"$fs_info")"
+	fs_status="$(jq -r ".mdsmap.info.gid_${fs_gid}.state" <<<"$fs_info")"
+	[[ "$fs_status" == "up:active" ]] && break
+	sleep 5
+done
+
+echo "mds new rank ${rank}: mds.$fs_mds is $fs_status on $(date)"

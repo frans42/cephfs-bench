@@ -1,0 +1,8 @@
+#!/bin/bash
+
+(( $# <= 1 )) && exit
+
+rep="$1"
+shift
+
+while (( rep-- )) ; do "$@" || exit "$?" ; done

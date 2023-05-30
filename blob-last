@@ -1,0 +1,14 @@
+#!/bin/bash
+
+mountpoint -q "/mnt/cephfs" || {
+	echo "error: /mnt/cephfs is not mounted" >&2
+	exit 1
+}
+
+blob="$(ls -1v "/mnt/cephfs/blobs" | tail -1)" || exit 1
+[[ -d "/mnt/cephfs/blobs/$blob" ]] || {
+	echo "error: blob dir '/mnt/cephfs/blobs/$blob' does not exist" >&2
+	exit 1
+}
+
+echo "$blob"

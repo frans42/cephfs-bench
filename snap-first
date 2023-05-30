@@ -1,0 +1,14 @@
+#!/bin/bash
+
+mountpoint -q "/mnt/adm/cephfs" || {
+	echo "error: /mnt/adm/cephfs not mounted" >&2
+	exit 1
+}
+
+snap="$(ls -1v "/mnt/adm/cephfs/.snap" | head -1)" || exit 1
+[[ -d "/mnt/adm/cephfs/.snap/$snap" ]] || {
+	echo "error: snap dir '/mnt/adm/cephfs/.snap/$snap' already exists" >&2
+	exit 1
+}
+
+echo "$snap"

@@ -1,0 +1,4 @@
+#!/bin/bash
+
+id="$(./id-last)"
+echo $(( id + 1 ))

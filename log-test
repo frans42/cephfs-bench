@@ -1,0 +1,28 @@
+#!/bin/bash
+
+conf_dir="$HOME/.bench"
+mkdir -p "${conf_dir}" || exit 1
+pipe="${conf_dir}/bench"
+
+[[ -p "$pipe" ]] || {
+	mkfifo "$pipe" || exit 1
+}
+
+exec {fd}<>"$pipe"
+
+echo "Waiting for input on fifo ($pipe, fd=$fd), send 'quit' to stop."
+while true; do
+	if read -u $fd -t 0 cmd msg ; then
+		if read -u $fd -t 10 cmd msg ; then
+			echo "cmd='$cmd' msg='$msg'"
+			[[ "$cmd" == "quit" ]] && exit
+		else
+			echo "warning: read timed out"
+		fi
+	else
+		echo "Nothing."
+		sleep 5
+	fi
+done
+
+exec {fd}<&-

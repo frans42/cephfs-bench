@@ -1,0 +1,40 @@
+[[ -r "/etc/profile.d/ceph.sh" ]] && source "/etc/profile.d/ceph.sh"
+
+# ceph config set global bluefs_preextend_wal_files true
+ceph config set global osd_map_message_max_bytes 16384
+ceph config set global osd_op_queue_cut_off high
+ceph config set global osd_op_queue wpq
+ceph config set global osd_pool_default_pg_autoscale_mode off
+
+ceph config set mon mon_sync_max_payload_size 4096
+ceph config set mon mon_warn_on_insecure_global_id_reclaim false
+ceph config set mon mon_warn_on_insecure_global_id_reclaim_allowed false
+
+ceph config set osd           bluefs_buffered_io true
+# ceph config set osd           bluestore_fsck_quick_fix_on_mount true
+ceph config set osd/class:hdd osd_max_backfills 3
+ceph config set osd/class:hdd osd_memory_cache_min 805306368
+ceph config set osd/class:hdd osd_memory_target 1611661312
+ceph config set osd/class:hdd osd_recovery_max_active 8
+ceph config set osd/class:hdd osd_recovery_sleep 0.050000
+ceph config set osd/class:hdd osd_snap_trim_sleep 0.1
+
+ceph config set mds client_cache_size 8192
+ceph config set mds mds_cache_memory_limit 17179869184
+ceph config set mds mds_cache_reservation 0.500000
+ceph config set mds mds_max_caps_per_client 65536
+ceph config set mds mds_min_caps_per_client 4096
+ceph config set mds mds_recall_max_caps 16384
+ceph config set mds mds_session_blacklist_on_timeout false
+ceph config set mds mds_bal_fragment_size_max 500000
+
+ceph config set mds mds_export_ephemeral_distributed true
+
+if mountpoint -q "/mnt/adm/cephfs"; then
+	echo "enabling ephemeral pinning on /mnt/cephfs/blobs" >&2
+	setfattr -n ceph.dir.pin.distributed -v 1 /mnt/adm/cephfs/data/blobs
+else
+	echo "/mnt/adm/cephfs not mounted, mount and then execute:" >&2
+	echo "  setfattr -n ceph.dir.pin.distributed -v 1 /mnt/adm/cephfs/data/blobs" >&2
+	exit 1
+fi

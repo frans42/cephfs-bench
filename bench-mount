@@ -1,0 +1,13 @@
+#!/bin/bash
+
+mountpoint -q "/mnt/cephfs" || {
+	secret="$(sudo docker exec ceph-adm ceph auth get-key client.fs)"
+	sudo mount -t ceph -o defaults,name=fs,secret="$secret" \
+		rit-tceph01.risoe.dk,rit-tceph02.risoe.dk,rit-tceph03.risoe.dk:/data /mnt/cephfs
+}
+
+mountpoint -q "/mnt/adm/cephfs" || {
+	secret="$(sudo docker exec ceph-adm ceph auth get-key client.fs-admin)"
+	sudo mount -t ceph -o defaults,name=fs-admin,secret="$secret" \
+		rit-tceph01.risoe.dk,rit-tceph02.risoe.dk,rit-tceph03.risoe.dk:/ /mnt/adm/cephfs
+}

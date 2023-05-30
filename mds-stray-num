@@ -1,0 +1,15 @@
+#!/bin/bash
+
+fs_info="$(sudo docker exec ceph-adm ceph fs get fs -f json)"
+rank=0
+ranks="$(jq ".mdsmap.up | length" <<<"$fs_info")"
+num_stray=0
+while (( rank < ranks )) ; do
+	fs_gid="$(jq ".mdsmap.up.mds_$rank" <<<"$fs_info")"
+	fs_mds="$(jq -r ".mdsmap.info.gid_${fs_gid}.name" <<<"$fs_info")"
+	num_stray_mds="$(sudo ssh "$fs_mds" "ceph daemon mds.$fs_mds perf dump | jq .mds_cache.num_strays")"
+	# echo "$fs_mds: DID=$fs_gid, num_stray=$num_stray_mds"
+	num_stray=$((num_stray+num_stray_mds))
+	rank=$((rank+1))
+done
+echo "$num_stray"

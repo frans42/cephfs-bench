@@ -1,0 +1,17 @@
+#!/bin/bash
+
+(( $(./snap-num) > 0 )) || exit 0
+
+mountpoint -q "/mnt/adm/cephfs" || {
+	echo "error: /mnt/adm/cephfs not mounted"
+	exit 1
+}
+
+snap="$(ls -1v "/mnt/adm/cephfs/.snap" | head -1)" || exit 1
+if ! [[ -d "/mnt/adm/cephfs/.snap/$snap" ]]; then
+	echo "error: snap dir '/mnt/adm/cephfs/.snap/$snap' does not exist" >&2
+	exit 1
+fi
+
+echo "delete snap dir: /mnt/adm/cephfs/.snap/$snap"
+rmdir "/mnt/adm/cephfs/.snap/$snap" || exit 1

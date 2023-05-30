@@ -1,0 +1,18 @@
+#!/bin/bash
+
+conf_dir="$HOME/.bench"
+mkdir -p "${conf_dir}" || exit 1
+pipe="${conf_dir}/bench"
+
+[[ -p "$pipe" ]] || {
+	mkfifo "$pipe" || exit 1
+}
+
+(( $# == 2 )) || {
+	echo "bench-set: usage: bench-set PAR VAL" >&2
+	exit 1
+}
+
+cmd="set $1 $2"
+echo "Sending command to benchmark: '$cmd'"
+echo "$cmd" > "$pipe"

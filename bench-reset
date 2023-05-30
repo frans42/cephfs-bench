@@ -1,0 +1,10 @@
+#!/bin/bash
+
+conf_dir="$HOME/.bench"
+mkdir -p "${conf_dir}" || exit 1
+opts_file="${conf_dir}/opts"
+
+echo "bench-reset: resetting bench config to defaults"
+rm -f "${opts_file}"
+
+exit 0

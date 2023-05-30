@@ -1,0 +1,31 @@
+#!/bin/bash
+
+(( $(./blob-num) > 0 )) || exit 0
+
+time=("/bin/time" "-f" "%e elapsed ( %U user %S system )")
+
+mountpoint -q "/mnt/cephfs" || {
+	echo "error: /mnt/cephfs is not mounted" >&2
+	exit 1
+}
+
+[[ -d "/mnt/cephfs/blobs" ]] || exit 1
+
+blob="$(ls -1v "/mnt/cephfs/blobs" | head -1)"
+if ! [[ -d "/mnt/cephfs/blobs/$blob" ]]; then
+	echo "error: blob dir '/mnt/cephfs/blobs/$blob' does not exist" >&2
+	exit 1
+fi
+
+# Make blob-delete idempotent: do not exit when missing (deleted earlier, create failed).
+if [[ -d "/mnt/cephfs/blobs/$blob/conda" ]] ; then
+	echo "blob dir: /mnt/cephfs/blobs/$blob/conda"
+	echo -n "timings remove many files: "
+	"${time[@]}" rm -rf "/mnt/cephfs/blobs/$blob/conda" || exit 1
+else
+	echo "warning: /mnt/cephfs/blobs/$blob/conda does not exist, nothing to do"
+fi
+
+echo "blob dir: /mnt/cephfs/blobs/$blob"
+echo -n "timings remove large file: "
+"${time[@]}" ./bench-rm "$blob" || exit 1

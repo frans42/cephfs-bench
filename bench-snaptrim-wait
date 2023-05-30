@@ -1,0 +1,12 @@
+#!/bin/bash
+
+start_tm="$(date +%s)"
+pg_stat="$(sudo docker exec ceph-adm ceph pg stat)"
+echo -n "waiting for snaptrim to finish: "
+while grep -q "snaptrim" <<<"$pg_stat" ; do
+	sleep 60
+	pg_stat="$(sudo docker exec ceph-adm ceph pg stat)"
+done
+end_tm="$(date +%s)"
+echo "$((end_tm-start_tm)) elapsed"
+exit 0

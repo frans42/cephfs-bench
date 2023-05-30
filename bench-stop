@@ -1,0 +1,29 @@
+#!/bin/bash
+
+conf_dir="$HOME/.bench"
+mkdir -p "${conf_dir}" || exit 1
+pipe="${conf_dir}/bench"
+
+[[ -p "$pipe" ]] || {
+	mkfifo "$pipe" || exit 1
+}
+
+if (( $# == 0 )); then
+	echo "Sending quit gracefully message to benchmark."
+	echo "set bench quit" > "$pipe"
+elif [[ "$1" == "before" && -n "$2" ]] ; then
+	echo "Sending quit-before '$2' message to benchmark."
+	echo "set $2 quit-before" > "$pipe"
+elif [[ "$1" == "after" && -n "$2" ]] ; then
+	echo "Sending quit-after '$2' message to benchmark."
+	echo "set $2 quit-after" > "$pipe"
+elif [[ "$1" == "fast" ]] ; then
+	echo "Sending quit message to benchmark."
+	echo "quit" > "$pipe"
+else
+	cat >&2 <<EOF
+usage: bench-stop [ fast | before CMD | after CMD ]
+With no arguments perform graceful exit after completion of benchmark cycle.
+EOF
+exit 1
+fi

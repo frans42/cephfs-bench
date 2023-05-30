@@ -1,0 +1,22 @@
+#!/bin/bash
+
+[[ -x "./bench" ]] || {
+	echo "bench-start: benchmark script not found, are you in the right directory?" >&2
+	exit 1
+}
+
+cleanup() {
+	trap - EXIT QUIT INT TERM PIPE
+	cat <<EOF
+
+Benchmark running in background.
+- Follow progress with: tail -f "$log"
+- Stop with: ./bench-stop
+EOF
+}
+
+log="${PWD}/bench-$(date +"%y%m%d-%H%M%S").log"
+nohup stdbuf -oL ./bench > "$log" 2>&1 &
+
+trap "cleanup" EXIT QUIT INT TERM PIPE
+tail -n +1 -f "$log"

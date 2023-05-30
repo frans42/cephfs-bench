@@ -1,0 +1,8 @@
+#!/bin/bash
+
+mountpoint -q "/mnt/adm/cephfs" || {
+	echo "error: /mnt/adm/cephfs not mounted" >&2
+	exit 1
+}
+
+ls -1v "/mnt/adm/cephfs/.snap" | wc -l

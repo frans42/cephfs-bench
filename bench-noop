@@ -1,0 +1,3 @@
+#!/bin/bash
+echo "bench: noop script executed on $(date)"
+exit 0

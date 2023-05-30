@@ -1,0 +1,13 @@
+#!/bin/bash
+
+conf_dir="$HOME/.bench"
+mkdir -p "${conf_dir}" || exit 1
+pipe="${conf_dir}/bench"
+
+[[ -p "$pipe" ]] || {
+	mkfifo "$pipe" || exit 1
+}
+
+echo "Requesting benchmark to pause for commands before next loop."
+echo "log Requesting pause before next loop." > "$pipe"
+echo "pause" > "$pipe"

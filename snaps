@@ -1,0 +1,10 @@
+#!/bin/bash
+
+mountpoint -q "/mnt/adm/cephfs" || {
+	echo "error: /mnt/adm/cephfs not mounted" >&2
+	exit 1
+}
+
+echo "$(ls -1v "/mnt/adm/cephfs/.snap" | wc -l) snaps:"
+snaps="$(ls -v "/mnt/adm/cephfs/.snap" | tr "\n" " ")"
+[[ -n "$snaps" ]] && printf "%s\n" "$snaps" | fold -s -w 100

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+mountpoint -q "/mnt/adm/cephfs" || {
+	echo "error: /mnt/adm/cephfs not mounted" >&2
+	exit 1
+}
+
+snap="$(./id-next)"
+if [[ -d "/mnt/adm/cephfs/.snap/$snap" ]]; then
+	echo "error: snap dir '/mnt/adm/cephfs/.snap/$snap' already exists" >&2
+	exit 1
+fi
+
+echo "create snap dir: /mnt/adm/cephfs/.snap/$snap"
+mkdir "/mnt/adm/cephfs/.snap/$snap" || exit 1

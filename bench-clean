@@ -1,0 +1,11 @@
+#!/bin/bash
+
+while (( $(./snap-num) > 0 )) ; do
+	echo "### Delete snap dir on $(date)"
+	./snap-delete
+done
+
+while (( $(./blob-num) > 0 )) ; do
+	echo "### Delete blob dir on $(date)"
+	./blob-delete
+done

@@ -1,0 +1,217 @@
+#!/bin/bash
+
+declare -A bench_opts=()
+export bench_opts
+
+bench_opts["run-daily"]="yes"
+bench_opts["run-daily-hour"]="2"
+bench_opts["run-daily-cmds"]="bench-noop"
+
+bench_opts["max-blobs"]=24
+
+bench_opts["blob-add-cmds"]="drop-caches blob-create snap-create blob-create snap-create"
+bench_opts["blob-del-cmds"]="drop-caches blob-delete snap-delete blob-delete snap-delete mds-fail"
+bench_opts["bench-extra-cmds"]="drop-caches bench-ls"
+
+conf_dir="$HOME/.bench"
+mkdir -p "${conf_dir}" || exit 1
+opts_file="${conf_dir}/opts"
+
+run_daily_last_checked="$(date -d "1970-01-01 UTC $(date +%T)" +%s)"
+
+opts_save() {
+        for opt in "${!bench_opts[@]}"; do
+                echo "bench_opts[\"${opt}\"]=\"${bench_opts[$opt]}\""
+        done > "${opts_file}" || return 1
+}
+
+bench_opts_show() {
+	for opt in "${!bench_opts[@]}"; do
+		echo "${opt} = ${bench_opts[$opt]}"
+	done
+}
+
+cleanup() {
+	trap - EXIT QUIT INT TERM PIPE
+	exec {fd}<&-
+	unset bench_opts["update"]
+	opts_save
+	echo "### bench: exiting on $(date)" >&2
+}
+
+exit_clean() {
+	[[ -n "$1" ]] && unset bench_opts["$1"]
+	opts_save
+	exit 0
+}
+
+cmd_action() {
+	local cmd="$1" msg="$2" opt val
+	case "$cmd" in
+		"pause")
+			bench_opts["pause"]=yes
+			echo "bench: $(date): scheduling pause"
+			;;
+		"cont")
+			unset bench_opts["pause"]
+			echo "bench: $(date): continuing after pause"
+			;;
+		"quit") echo "bench: received command 'quit', exiting" ; exit 0 ;;
+		"log") echo "bench log: $msg" ;;
+		"update")
+			bench_opts["update"]=yes
+			echo "bench: $(date): scheduling update"
+		;;
+		"set")
+			read opt val <<<"$msg"
+			if [[ -n "$val" ]]; then
+				echo "bench set: setting '${opt}'='${val}'"
+				bench_opts["${opt}"]="${val}"
+			else
+				echo "bench set: un-setting parameter '${opt}'"
+				unset bench_opts["${opt}"]
+			fi
+		;;
+		"opts") bench_opts_show |& sed "s/^/bench: show opts: /" ;;
+		*) echo "bench: warning: unknown command '$cmd', msg='$msg'" >&2 ;;
+	esac
+	opts_save
+}
+
+check_for_fifo_cmd() {
+	while read -u $fd -t 0 cmd msg ; do
+		if ! read -u $fd -t 10 cmd msg ; then
+			echo "bench: warning: read from command fifo timed out" >&2
+			return 0
+		fi
+		cmd_action "$cmd" "$msg"
+	done
+	return 0
+}
+
+bench_stats() {
+	echo "### Bench stats on $(date)."
+	sudo docker exec ceph-adm ceph health |& sed "s/^/status ceph health: /"
+	sudo docker exec ceph-adm ceph pg stat |& sed "s/^/status ceph pg stat: /"
+	./mds-stray-num |& sed "s/^/status num strays: num_stray = /"
+	return 0
+}
+
+run_command() {
+	echo "### bench: running command $1"
+	./$1 || return 1
+}
+
+run_commands() {
+	while (( $# > 0 )) ; do
+		check_for_fifo_cmd || return 1
+		[[ "${bench_opts["$1"]}" == "quit-before" ]] \
+			&& exit_clean "$1"
+		[[ "${bench_opts["$1"]:-"yes"}" == "yes" ]] \
+			&& { bench_stats ; run_command "$1" || return 1 ; }
+		[[ "${bench_opts["$1"]}" == "quit-after" ]] \
+			&& exit_clean "$1"
+		shift
+	done
+	return 0
+}
+
+blobs_add() {
+	run_commands ${bench_opts["blob-add-cmds"]} || return 1
+}
+
+blobs_rm() {
+	run_commands ${bench_opts["blob-del-cmds"]} || return 1
+}
+
+bench_extra() {
+	run_commands ${bench_opts["bench-extra-cmds"]} || return 1
+}
+
+bench_status() {
+	echo "### Status report on $(date)."
+	bench_opts_show |& sed "s/^/status bench opts: /"
+	sudo docker exec ceph-adm ceph status |& sed "s/^/status ceph: /"
+	sudo docker exec ceph-adm ceph config dump \
+		|& sed -e "s/  */ /g" -e "s/^/status ceph config: /"
+	sudo docker exec ceph-adm ceph versions |& sed -e "s/^/status ceph versions: /"
+	getfattr -n ceph.dir.rbytes /mnt/cephfs >& /dev/null # force update of usage info
+	df -h /mnt/cephfs/ /mnt/adm/cephfs/ |& sed "s/^/status usage: /" 
+	./blobs |& sed "s/^/status blobs: /"
+	./snaps |& sed "s/^/status snaps: /"
+}
+
+bench_pause() {
+	check_for_fifo_cmd || return 1
+	[[ "${bench_opts["pause"]:-"no"}" != "yes" ]] && return 0
+	echo "### bench pause: benchmark paused on $(date)" >&2
+	echo "### bench pause: waiting for messages" >&2
+	echo "### bench pause: execute ./bench-cont to continue" >&2
+	while [[ "${bench_opts["pause"]:-"no"}" == "yes" ]]; do
+		check_for_fifo_cmd || return 1
+	done
+	opts_save
+}
+
+run_daily() {
+	local rdh="${bench_opts["run-daily-hour"]}:00"
+	local run_daily_time="$(date -d "1970-01-01 UTC ${rdh}" +%s)"
+	local run_daily_check_time="$(date -d "1970-01-01 UTC $(date +%T)" +%s)"
+	(( run_daily_check_time < run_daily_last_checked )) && \
+		run_daily_last_checked=$(( run_daily_last_checked-(24*60*60) ))
+	if [[ "${bench_opts["run-daily"]:-"no"}" == "yes" ]] ; then
+		local tm1="$((run_daily_time-run_daily_last_checked))"
+		local tm2="$((run_daily_time-run_daily_check_time))"
+		if (( tm1*tm2 < 0 )) || (( tm2 == 0 )); then
+			run_commands ${bench_opts["run-daily-cmds"]} || return 1
+		fi
+	fi
+	run_daily_last_checked="$(date -d "1970-01-01 UTC $(date +%T)" +%s)"
+}
+
+check_for_update() {
+	check_for_fifo_cmd || return 1
+	[[ "${bench_opts["update"]:-"no"}" != "yes" ]] && return 0
+	echo "### bench update: upgrading to new version on $(date)" >&2
+	unset bench_opts["update"]
+	opts_save
+	exec ./bench
+}
+
+[[ -r "${opts_file}" ]] && { source "${opts_file}" || exit 1 ; }
+[[ "$1" =~ conf ]] && {
+	if [[ -r "${opts_file}" ]] ; then
+		echo "bench: config file exists, use ./bench-reset to clear"
+	else
+		echo "bench: config is at default"
+	fi
+	bench_opts_show
+	exit 0
+}
+(( $# > 0 )) && {
+	echo "bench: usage: ./bench [config]" >&2
+	exit 1
+}
+
+echo "### bench: starting on $(date)" >&2
+pipe="${conf_dir}/bench"
+
+[[ -p "$pipe" ]] || {
+	mkfifo "$pipe" || exit 1
+}
+
+exec {fd}<>"$pipe"
+trap "cleanup" EXIT QUIT INT TERM PIPE
+
+bench_status || exit 1
+while true; do
+	while (( $(./blob-num) > ${bench_opts["max-blobs"]} )) ; do blobs_rm || exit 1 ; done
+	blobs_add || exit 1
+	bench_extra || exit 1
+	bench_pause || exit 1
+	run_daily || exit 1 # execute before update to avoid skipping on update
+	check_for_update || exit 1
+	bench_status || exit 1
+	[[ "${bench_opts["bench"]}" == "quit" ]] && exit_clean bench
+done
+

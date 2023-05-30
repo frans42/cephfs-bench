@@ -1,0 +1,26 @@
+#!/bin/bash
+
+time=("/bin/time" "-f" "%e elapsed ( %U user %S system )")
+
+mountpoint -q "/mnt/cephfs" || {
+	echo "error: /mnt/cephfs is not mounted" >&2
+	exit 1
+}
+
+mkdir -p "/mnt/cephfs/blobs" || exit 1
+blob="$(./id-next)"
+if [[ -d "/mnt/cephfs/blobs/$blob" ]]; then
+	echo "error: blob dir '/mnt/cephfs/blobs/$blob' already exists" >&2
+	exit 1
+fi
+
+echo "blob dir: /mnt/cephfs/blobs/$blob"
+mkdir -p "/mnt/cephfs/blobs/$blob" || exit 1
+
+echo "start: copy large ISO: image.iso"
+echo -n "timings copy large file: "
+"${time[@]}" cp "/mnt/ram/image.iso" "/mnt/cephfs/blobs/$blob/" || exit 1
+
+echo "start: untar large archive: conda.tgz"
+echo -n "timings create many files: "
+"${time[@]}" ./bench-tar "$blob" || exit 1

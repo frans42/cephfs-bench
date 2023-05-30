@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# bug: execute this command in every script if blob-dir does not exist:
+# [[ -d "/mnt/cephfs/blobs" ]] || { ./blob-prepare || exit 1 ; }
+
+case "$1" in
+	  "mimic" )
+		echo "Applying settings for ceph version mimic."
+		sudo bash conf.mimic
+		;;
+	"octopus" )
+		echo "Applying settings for ceph version octopus."
+		sudo bash conf.octopus
+		;;
+	* )
+		echo "usage: bench-prepare (mimic|octopus)" >&2
+		exit 1
+		;;
+esac
+
+mountpoint -q "/mnt/cephfs" || {
+	./bench-mount || exit 1
+}
+
+mountpoint -q "/mnt/ram" || {
+	echo "bench-prepare: creating RAM disk"
+	sudo mkdir -p "/mnt/ram" || exit 1
+	sudo mount -t ramfs ramfs /mnt/ram || exit 1
+	sudo chown root:ansible "/mnt/ram" || exit 1
+	sudo chmod -R g+w "/mnt/ram" || exit 1
+}
+
+[[ -r "/mnt/ram/image.iso" ]] || {
+	echo "bench-prepare: copying large iso to ram disk"
+	cp "$HOME/image.iso" "/mnt/ram/image.iso" || exit 1
+}
+
+[[ -r "/mnt/ram/conda.tgz" ]] || {
+	echo "bench-prepare: copying large archive to ram disk"
+	cp "$HOME/conda.tgz" "/mnt/ram/conda.tgz" || exit 1
+}
+
+changed=0
+
+[[ -G "/mnt/cephfs" ]] || {
+	changed=1
+	sudo chown -R root:ansible "/mnt/adm/cephfs" || exit 1
+}
+
+[[ -w "/mnt/cephfs" && -g "/mnt/cephfs" ]] || {
+	changed=1
+	sudo chmod -R g+ws "/mnt/adm/cephfs" || exit
+}
+
+if (( changed )) ; then
+	./bench-umount || exit 1
+	sleep 0.5
+	./bench-mount || exit 1
+	echo "bench-prepare: bench folder structure successfully initialised"
+fi
+
+[[ -d "/mnt/cephfs/blobs" ]] || {
+	mkdir -p "/mnt/cephfs/blobs" || exit 1
+}
+
+exit 0

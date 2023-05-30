@@ -1,0 +1,78 @@
+#!/bin/bash
+
+grep_cmd=("grep")
+reverse=( "-v" )
+events=( "-e" "^bench log:" \
+	"-e" "^bench:" \
+	"-e" "^bench set:" \
+	"-e" "^### bench update:" \
+	"-e" "^### bench pause: benchmark paused on"
+)
+usage=( "-e" "^status usage:" )
+stray=( "-e" "^status num strays:" )
+create=( "-e" "^timings create many files:" )
+remove=( "-e" "^timings remove many files:" )
+lcreate=( "-e" "^timings copy large file:" )
+lremove=( "-e" "^timings remove large file:" )
+ls=( "-e" "^timings recursive ls:" )
+health=( "-e" "^status ceph health:" )
+pg=( "-e" "^status ceph pg stat:" )
+head=( "-e" "^### Status report on" )
+status=( "-e" "^### Status report on" "-e" "^status ceph:" )
+config=( "-e" "^### Status report on" "-e" "^status ceph config:" )
+opts=( "-e" "^### Status report on" "-e" "^status bench opts:" )
+versions=( "-e" "^### Status report on" "-e" "^status ceph versions:" )
+blobs=( "-e" "^### Status report on" "-e" "^status blobs:" )
+snaps=( "-e" "^### Status report on" "-e" "^status snaps:" )
+comm=( "-e" "^### Status report on" "-e" "^### bench: running command" )
+mds=( "-e" "^mds fail rank" "-e" "^mds new rank" )
+start=( "-e" "^### bench: starting on" )
+update=( "-e" "^### bench update:" )
+trim=( "-e" "^waiting for snaptrim to finish:" )
+noop=( "-e" "^bench: noop script executed on" )
+
+annotations=( "-e" "^### Bench stats on" \
+	"-e" "^### bench:" \
+	"-e" "^blob dir:" \
+	"-e" "^delete snap dir:" \
+	"-e" "ceph mds fail:" \
+	"-e" "^start:" \
+	"-e" "^create snap dir:" \
+	"-e" "^delete snap dir:" \
+	"-e" "^### bench pause:" \
+)
+
+all=()
+all_keys=()
+for key in annotations events usage stray create remove lcreate lremove \
+		ls health pg head status config opts versions blobs snaps \
+		comm mds start update trim noop; do
+	all_keys+=("$key")
+	array_ref="$key[@]"
+	all+=("${!array_ref}")
+done
+
+sed_cmd=( "sed" "-e" "s/^### Status report on/\n### Status report on/" )
+
+while (( $# > 0 )); do
+	array_ref="$1[@]"
+	grep_opts=("${!array_ref}")
+	if (( ${#grep_opts[@]} > 0 )); then
+		grep_cmd+=("${grep_opts[@]}")
+		[[ "$1" == "head" ]] && sed_cmd=()
+	else
+		echo "bench-grep: unknown key: '$1'" >&2
+		exit 1
+	fi
+	shift
+done
+
+regexp="bench-[[:digit:]][[:digit:]]*-[[:digit:]][[:digit:]]*.log"
+log_file="$(ls -1r | grep -o "$regexp" | head "-${LOG_BACK:-1}" | tail "-1")"
+
+echo "bench-grep: log file is '$log_file'"
+if (( ${#sed_cmd[@]} > 0 )) ; then
+	"${grep_cmd[@]}" "${log_file}" | "${sed_cmd[@]}"
+else
+	"${grep_cmd[@]}" "${log_file}"
+fi
